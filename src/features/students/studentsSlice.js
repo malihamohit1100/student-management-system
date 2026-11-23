@@ -1,21 +1,24 @@
 
 import { createSlice, createSelector } from '@reduxjs/toolkit';
-import { loadStudents } from '../../utils/storage';
+
+import {
+  loadStudents,
+  loadActivities,
+  loadUnreadStatus,
+} from '../../utils/storage';
 
 const initialState = {
   students: loadStudents(),
   searchTerm: '',
   error: null,
-  activities: [],
+  activities: loadActivities(),
+  hasUnreadActivities: loadUnreadStatus(),
 };
 
 const addActivity = (state, activity) => {
-  state.activities.unshift({
-    ...activity,
-  });
-
-  // Keep only the 10 most recent activities.
-  state.activities = state.activities.slice(0, 10);
+  state.activities.unshift(activity);
+  state.activities = state.activities.slice(0, 20);
+  state.hasUnreadActivities = true;
 };
 
 const studentsSlice = createSlice({
@@ -40,25 +43,24 @@ const studentsSlice = createSlice({
 
         state.students.push(student);
         state.error = null;
-
         addActivity(state, activity);
       },
 
       prepare(student) {
-        const name = student.name.trim();
+        const now = new Date().toISOString();
 
         return {
           payload: {
             student: {
               ...student,
               id: crypto.randomUUID(),
-              createdAt: new Date().toISOString(),
+              createdAt: now,
             },
             activity: {
               id: crypto.randomUUID(),
               type: 'added',
-              studentName: name,
-              createdAt: new Date().toISOString(),
+              studentName: student.name.trim(),
+              createdAt: now,
             },
           },
         };
@@ -101,6 +103,8 @@ const studentsSlice = createSlice({
       },
 
       prepare({ id, ...updatedData }) {
+        const now = new Date().toISOString();
+
         return {
           payload: {
             id,
@@ -109,7 +113,7 @@ const studentsSlice = createSlice({
               id: crypto.randomUUID(),
               type: 'edited',
               studentName: updatedData.name.trim(),
-              createdAt: new Date().toISOString(),
+              createdAt: now,
             },
           },
         };
@@ -155,12 +159,17 @@ const studentsSlice = createSlice({
     clearAllStudents(state) {
       state.students = [];
       state.activities = [];
+      state.hasUnreadActivities = false;
       state.error = null;
       state.searchTerm = '';
     },
 
     setSearchTerm(state, action) {
       state.searchTerm = action.payload;
+    },
+
+    markActivitiesRead(state) {
+      state.hasUnreadActivities = false;
     },
 
     clearError(state) {
@@ -175,6 +184,7 @@ export const {
   deleteStudent,
   clearAllStudents,
   setSearchTerm,
+  markActivitiesRead,
   clearError,
 } = studentsSlice.actions;
 
@@ -182,6 +192,8 @@ export const selectStudents = (state) => state.students.students;
 export const selectSearchTerm = (state) => state.students.searchTerm;
 export const selectStudentError = (state) => state.students.error;
 export const selectActivities = (state) => state.students.activities;
+export const selectHasUnreadActivities = (state) =>
+  state.students.hasUnreadActivities;
 
 export const selectFilteredStudents = createSelector(
   [selectStudents, selectSearchTerm],

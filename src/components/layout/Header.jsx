@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Bell,
   Plus,
@@ -14,6 +14,8 @@ import {
 
 import {
   selectActivities,
+  selectHasUnreadActivities,
+  markActivitiesRead,
 } from '../../features/students/studentsSlice';
 
 const sectionTitles = {
@@ -35,13 +37,23 @@ const activityLabels = {
   deleted: 'was deleted',
 };
 
-const Header = ({
-  activeSection,
-  onMenuClick,
-  onAddClick,
-}) => {
+const Header = ({ activeSection, onMenuClick, onAddClick }) => {
+  const dispatch = useDispatch();
+
   const activities = useSelector(selectActivities);
+  const hasUnreadActivities = useSelector(selectHasUnreadActivities);
+
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const handleNotificationClick = () => {
+    const willOpen = !showNotifications;
+
+    setShowNotifications(willOpen);
+
+    if (willOpen) {
+      dispatch(markActivitiesRead());
+    }
+  };
 
   const formatActivityTime = (date) => {
     const activityDate = new Date(date);
@@ -58,7 +70,6 @@ const Header = ({
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#19141E]/90 backdrop-blur-xl">
       <div className="flex min-h-20 items-center justify-between gap-4 px-5 py-3 md:px-8">
 
-        {/* Page title */}
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -80,21 +91,20 @@ const Header = ({
           </div>
         </div>
 
-        {/* Header actions */}
         <div className="flex items-center gap-3">
 
           {/* Notifications */}
           <div className="relative">
             <button
               type="button"
-              onClick={() => setShowNotifications((current) => !current)}
+              onClick={handleNotificationClick}
               className="relative rounded-xl border border-white/10 bg-[#251E2C] p-2.5 text-[#A99EAF] transition hover:text-[#F4EFEA]"
               aria-label="Notifications"
               aria-expanded={showNotifications}
             >
               <Bell size={19} />
 
-              {activities.length > 0 && (
+              {hasUnreadActivities && (
                 <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#D9A79C] ring-2 ring-[#251E2C]" />
               )}
             </button>
@@ -137,8 +147,7 @@ const Header = ({
                 ) : (
                   <div className="max-h-80 overflow-y-auto">
                     {activities.map((activity) => {
-                      const Icon =
-                        activityIcons[activity.type] || Bell;
+                      const Icon = activityIcons[activity.type] || Bell;
 
                       return (
                         <div
@@ -181,7 +190,6 @@ const Header = ({
             <span className="sm:hidden">Add</span>
           </button>
 
-          {/* Profile icon */}
           <div className="hidden h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#251E2C] text-[#C3B1E1] sm:flex">
             <UserRound size={18} />
           </div>

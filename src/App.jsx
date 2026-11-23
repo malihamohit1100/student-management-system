@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Users,
@@ -25,17 +25,132 @@ import {
   clearAllStudents,
 } from './features/students/studentsSlice';
 
+const parseRoute = (path) => {
+  const segments = path
+    .replace(/^#\/?/, '')
+    .split('/')
+    .filter(Boolean);
+
+  const validSections = [
+    'dashboard',
+    'students',
+    'departments',
+    'settings',
+  ];
+
+  const section = validSections.includes(segments[0])
+    ? segments[0]
+    : 'dashboard';
+
+  return {
+    section,
+    action: segments[1] || null,
+    studentId: segments[2] || null,
+  };
+};
+
+const getInitialRoute = () => {
+  return parseRoute(window.location.hash);
+};
+
 const App = () => {
   const dispatch = useDispatch();
   const students = useSelector(selectStudents);
 
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const initialRoute = getInitialRoute();
+
+  const [activeSection, setActiveSection] = useState(initialRoute.section);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(
+    initialRoute.action === 'add' || initialRoute.action === 'edit'
+  );
+
   const [editingStudent, setEditingStudent] = useState(null);
 
   const [confirmAction, setConfirmAction] = useState(null);
+
+  useEffect(() => {
+    const syncRoute = () => {
+      const route = getInitialRoute();
+
+      setActiveSection(route.section);
+
+      if (route.section === 'students' && route.action === 'add') {
+        setEditingStudent(null);
+        setIsFormOpen(true);
+        return;
+      }
+
+      if (route.section === 'students' && route.action === 'edit') {
+        const student = students.find(
+          (item) => item.id === route.studentId
+        );
+
+        setEditingStudent(student || null);
+        setIsFormOpen(Boolean(student));
+        return;
+      }
+
+      setIsFormOpen(false);
+      setEditingStudent(null);
+    };
+
+    if (!window.location.hash) {
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${window.location.search}#dashboard`
+      );
+    }
+
+    syncRoute();
+
+    window.addEventListener('hashchange', syncRoute);
+
+    return () => {
+      window.removeEventListener('hashchange', syncRoute);
+    };
+  }, [students]);
+
+  const navigateTo = (path, replace = false) => {
+    const normalizedPath = path.replace(/^#\/?/, '');
+    const targetHash = `#${normalizedPath}`;
+
+    if (window.location.hash !== targetHash) {
+      if (replace) {
+        window.history.replaceState(
+          null,
+          '',
+          `${window.location.pathname}${window.location.search}${targetHash}`
+        );
+      } else {
+        window.location.hash = normalizedPath;
+      }
+    }
+
+    const route = parseRoute(normalizedPath);
+
+    setActiveSection(route.section);
+
+    if (route.section === 'students' && route.action === 'add') {
+      setEditingStudent(null);
+      setIsFormOpen(true);
+    } else if (
+      route.section === 'students' &&
+      route.action === 'edit'
+    ) {
+      const student = students.find(
+        (item) => item.id === route.studentId
+      );
+
+      setEditingStudent(student || null);
+      setIsFormOpen(Boolean(student));
+    } else {
+      setIsFormOpen(false);
+      setEditingStudent(null);
+    }
+  };
 
   const statistics = useMemo(() => {
     const departmentCount = new Set(
@@ -70,18 +185,15 @@ const App = () => {
   }, [students]);
 
   const openAddStudent = () => {
-    setEditingStudent(null);
-    setIsFormOpen(true);
+    navigateTo('students/add');
   };
 
   const openEditStudent = (student) => {
-    setEditingStudent(student);
-    setIsFormOpen(true);
+    navigateTo(`students/edit/${student.id}`);
   };
 
   const closeStudentForm = () => {
-    setIsFormOpen(false);
-    setEditingStudent(null);
+    navigateTo('students', true);
   };
 
   const requestDeleteStudent = (student) => {
@@ -114,7 +226,12 @@ const App = () => {
     if (!confirmAction) return;
 
     if (confirmAction.type === 'delete') {
-      dispatch(deleteStudent(confirmAction.student.id));
+      dispatch(
+        deleteStudent({
+          id: confirmAction.student.id,
+          name: confirmAction.student.name,
+        })
+      );
     }
 
     if (confirmAction.type === 'clearAll') {
@@ -230,7 +347,7 @@ const App = () => {
 
           <button
             type="button"
-            onClick={() => setActiveSection('students')}
+            onClick={() => navigateTo('students')}
             className="flex items-center gap-2 text-xs font-semibold text-[#C3B1E1] transition hover:text-[#D7C8EF]"
           >
             View all students
@@ -329,7 +446,7 @@ const App = () => {
       {/* Sidebar stays mounted, regardless of active page */}
       <Sidebar
         activeSection={activeSection}
-        onNavigate={setActiveSection}
+        onNavigate={navigateTo}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -341,7 +458,6 @@ const App = () => {
           activeSection={activeSection}
           onMenuClick={() => setIsSidebarOpen(true)}
           onAddClick={openAddStudent}
-          onNavigate={setActiveSection}
         />
 
         <div className="mx-auto w-full max-w-[1600px] p-5 md:p-8">
