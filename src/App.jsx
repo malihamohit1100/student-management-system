@@ -3,236 +3,387 @@ import { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Users,
-  GraduationCap,
-  Layers3,
+  Building2,
   UserPlus,
+  Clock3,
+  ArrowRight,
 } from 'lucide-react';
-import { toast } from 'react-toastify';
 
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
-
-import StatCard from './components/ui/StatCard';
-import ConfirmDialog from './components/ui/ConfirmDialog';
+import SettingsPanel from './components/layout/SettingsPanel';
 
 import StudentForm from './features/students/components/StudentForm';
 import StudentTable from './features/students/components/StudentTable';
+import DepartmentOverview from './features/students/components/DepartmentOverview';
+
+import ConfirmDialog from './components/ui/ConfirmDialog';
 
 import {
   selectStudents,
   deleteStudent,
+  clearAllStudents,
 } from './features/students/studentsSlice';
 
-function App() {
+const App = () => {
   const dispatch = useDispatch();
-
   const students = useSelector(selectStudents);
 
+  const [activeSection, setActiveSection] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [studentToDelete, setStudentToDelete] = useState(null);
 
-  // Calculate dashboard statistics
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+
+  const [confirmAction, setConfirmAction] = useState(null);
+
   const statistics = useMemo(() => {
-    const departments = new Set(
-      students.map((student) => student.department)
-    );
+    const departmentCount = new Set(
+      students
+        .map((student) => student.department.trim())
+        .filter(Boolean)
+    ).size;
+
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
     const recentStudents = students.filter((student) => {
-      const createdAt = new Date(student.createdAt);
+      if (!student.createdAt) return false;
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      return (
-        !Number.isNaN(createdAt.getTime()) &&
-        createdAt >= sevenDaysAgo
-      );
-    });
+      return new Date(student.createdAt).getTime() >= sevenDaysAgo;
+    }).length;
 
     return {
       totalStudents: students.length,
-      totalDepartments: departments.size,
-      recentStudents: recentStudents.length,
+      totalDepartments: departmentCount,
+      recentStudents,
     };
   }, [students]);
 
-  // Open form for adding a student
-  const handleAddStudent = () => {
-    setSelectedStudent(null);
+  const recentStudents = useMemo(() => {
+    return [...students]
+      .sort(
+        (first, second) =>
+          new Date(second.createdAt || 0) -
+          new Date(first.createdAt || 0)
+      )
+      .slice(0, 5);
+  }, [students]);
+
+  const openAddStudent = () => {
+    setEditingStudent(null);
     setIsFormOpen(true);
   };
 
-  // Open form for editing a student
-  const handleEditStudent = (student) => {
-    setSelectedStudent(student);
+  const openEditStudent = (student) => {
+    setEditingStudent(student);
     setIsFormOpen(true);
   };
 
-  // Close student form
-  const handleCloseForm = () => {
+  const closeStudentForm = () => {
     setIsFormOpen(false);
-    setSelectedStudent(null);
+    setEditingStudent(null);
   };
 
-  // Open delete confirmation
-  const handleDeleteRequest = (student) => {
-    setStudentToDelete(student);
+  const requestDeleteStudent = (student) => {
+    const selectedStudent =
+      typeof student === 'string'
+        ? students.find((item) => item.id === student)
+        : student;
+
+    if (!selectedStudent) return;
+
+    setConfirmAction({
+      type: 'delete',
+      student: selectedStudent,
+    });
   };
 
-  // Confirm student deletion
-  const handleConfirmDelete = () => {
-    if (!studentToDelete) {
-      return;
+  const requestClearAll = () => {
+    if (students.length === 0) return;
+
+    setConfirmAction({
+      type: 'clearAll',
+    });
+  };
+
+  const closeConfirmation = () => {
+    setConfirmAction(null);
+  };
+
+  const handleConfirmAction = () => {
+    if (!confirmAction) return;
+
+    if (confirmAction.type === 'delete') {
+      dispatch(deleteStudent(confirmAction.student.id));
     }
 
-    dispatch(deleteStudent(studentToDelete.id));
+    if (confirmAction.type === 'clearAll') {
+      dispatch(clearAllStudents());
+    }
 
-    toast.success('Student deleted successfully.');
-
-    setStudentToDelete(null);
+    setConfirmAction(null);
   };
 
-  // Cancel deletion
-  const handleCancelDelete = () => {
-    setStudentToDelete(null);
+  const renderDashboard = () => (
+    <div className="space-y-8">
+
+      {/* Welcome section */}
+      <div>
+        <p className="text-sm text-[#A99EAF]">
+          Overview
+        </p>
+
+        <h2 className="mt-1 text-2xl font-semibold text-[#F4EFEA]">
+          Welcome to StudentHub
+        </h2>
+
+        <p className="mt-2 text-sm text-[#A99EAF]">
+          Keep track of your students and academic information.
+        </p>
+      </div>
+
+      {/* Statistics */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+
+        <div className="group rounded-2xl border border-white/10 bg-[#251E2C] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#C3B1E1]/40 hover:shadow-[0_12px_35px_rgba(195,177,225,0.10)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[#A99EAF]">
+                Total Students
+              </p>
+
+              <p className="mt-3 text-3xl font-semibold text-[#F4EFEA]">
+                {statistics.totalStudents}
+              </p>
+            </div>
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#C3B1E1]/15 text-[#C3B1E1] transition-transform duration-300 group-hover:scale-110">
+              <Users size={23} />
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-[#8F8298]">
+            Registered student records
+          </p>
+        </div>
+
+        <div className="group rounded-2xl border border-white/10 bg-[#251E2C] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#C3B1E1]/40 hover:shadow-[0_12px_35px_rgba(195,177,225,0.10)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[#A99EAF]">
+                Departments
+              </p>
+
+              <p className="mt-3 text-3xl font-semibold text-[#F4EFEA]">
+                {statistics.totalDepartments}
+              </p>
+            </div>
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#D9A79C]/15 text-[#D9A79C] transition-transform duration-300 group-hover:scale-110">
+              <Building2 size={23} />
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-[#8F8298]">
+            Departments represented by students
+          </p>
+        </div>
+
+        <div className="group rounded-2xl border border-white/10 bg-[#251E2C] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#C3B1E1]/40 hover:shadow-[0_12px_35px_rgba(195,177,225,0.10)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[#A99EAF]">
+                Recently Added
+              </p>
+
+              <p className="mt-3 text-3xl font-semibold text-[#F4EFEA]">
+                {statistics.recentStudents}
+              </p>
+            </div>
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#C3B1E1]/15 text-[#C3B1E1] transition-transform duration-300 group-hover:scale-110">
+              <UserPlus size={23} />
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-[#8F8298]">
+            Students added in the last 7 days
+          </p>
+        </div>
+      </div>
+
+      {/* Recent students */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#251E2C]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-5 sm:px-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <Clock3 size={17} className="text-[#C3B1E1]" />
+              <h3 className="text-base font-semibold text-[#F4EFEA]">
+                Recent Students
+              </h3>
+            </div>
+
+            <p className="mt-1 text-xs text-[#A99EAF]">
+              Your latest registered students
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('students')}
+            className="flex items-center gap-2 text-xs font-semibold text-[#C3B1E1] transition hover:text-[#D7C8EF]"
+          >
+            View all students
+            <ArrowRight size={15} />
+          </button>
+        </div>
+
+        {recentStudents.length === 0 ? (
+          <div className="px-5 py-12 text-center">
+            <Users
+              size={28}
+              className="mx-auto mb-3 text-[#8F8298]"
+            />
+
+            <p className="text-sm font-medium text-[#F4EFEA]">
+              No students registered yet
+            </p>
+
+            <p className="mt-1 text-xs text-[#A99EAF]">
+              Add your first student to get started.
+            </p>
+
+            <button
+              type="button"
+              onClick={openAddStudent}
+              className="mt-5 rounded-xl bg-[#C3B1E1] px-4 py-2.5 text-sm font-semibold text-[#19141E] transition hover:bg-[#D7C8EF]"
+            >
+              Add Student
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left">
+              <thead>
+                <tr className="border-b border-white/10 text-xs text-[#A99EAF]">
+                  <th className="px-6 py-4 font-medium">Student</th>
+                  <th className="px-6 py-4 font-medium">Email</th>
+                  <th className="px-6 py-4 font-medium">Department</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {recentStudents.map((student) => (
+                  <tr
+                    key={student.id}
+                    className="border-b border-white/5 last:border-0"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-[#F4EFEA]">
+                      {student.name}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-[#A99EAF]">
+                      {student.email}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-[#A99EAF]">
+                      {student.department}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'dashboard':
+        return renderDashboard();
+
+      case 'students':
+        return (
+          <StudentTable
+            onEdit={openEditStudent}
+            onDelete={requestDeleteStudent}
+          />
+        );
+
+      case 'departments':
+        return <DepartmentOverview />;
+
+      case 'settings':
+        return <SettingsPanel onClearAll={requestClearAll} />;
+
+      default:
+        return renderDashboard();
+    }
   };
 
   return (
-    <div
-      id="dashboard"
-      className="flex min-h-screen bg-[#19141E]"
-    >
-      {/* Sidebar */}
+    <div className="flex min-h-screen bg-[#19141E]">
+
+      {/* Sidebar stays mounted, regardless of active page */}
       <Sidebar
+        activeSection={activeSection}
+        onNavigate={setActiveSection}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      {/* Main Content */}
+      {/* Main content */}
       <main className="min-w-0 flex-1">
+
         <Header
+          activeSection={activeSection}
           onMenuClick={() => setIsSidebarOpen(true)}
-          onAddClick={handleAddStudent}
+          onAddClick={openAddStudent}
+          onNavigate={setActiveSection}
         />
 
-        <div className="mx-auto max-w-[1600px] space-y-8 p-4 sm:p-6 lg:p-8">
-
-          {/* Welcome Section */}
-          <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-sm font-medium text-[#C3B1E1]">
-                STUDENT ADMINISTRATION
-              </p>
-
-              <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#F4EFEA] sm:text-3xl">
-                Welcome to your dashboard
-              </h1>
-
-              <p className="mt-2 text-sm text-[#F4EFEA]/45">
-                Manage your students and keep track of academic records.
-              </p>
-            </div>
-
-            <p className="text-xs text-[#F4EFEA]/35">
-              Your student directory at a glance
-            </p>
-          </section>
-
-          {/* Statistics */}
-          <section>
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-[#F4EFEA]">
-                Overview
-              </h2>
-
-              <p className="mt-1 text-xs text-[#F4EFEA]/40">
-                Key student management statistics
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <StatCard
-                title="Total Students"
-                value={statistics.totalStudents}
-                description="All registered students"
-                icon={Users}
-                accent="#C3B1E1"
-              />
-
-              <StatCard
-                title="Departments"
-                value={statistics.totalDepartments}
-                description="Departments represented"
-                icon={Layers3}
-                accent="#D9A79C"
-              />
-
-              <StatCard
-                title="Recently Added"
-                value={statistics.recentStudents}
-                description="Students added in the last 7 days"
-                icon={GraduationCap}
-                accent="#C3B1E1"
-              />
-            </div>
-          </section>
-
-          {/* Student Management */}
-          <section>
-            <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <div>
-                <h2 className="text-base font-semibold text-[#F4EFEA]">
-                  Manage Students
-                </h2>
-
-                <p className="mt-1 text-xs text-[#F4EFEA]/40">
-                  Add, update, search and manage student records.
-                </p>
-              </div>
-
-              <button
-                onClick={handleAddStudent}
-                className="flex w-fit items-center gap-2 rounded-xl border border-[#C3B1E1]/20 bg-[#C3B1E1]/10 px-4 py-2.5 text-sm font-medium text-[#C3B1E1] transition hover:bg-[#C3B1E1]/20"
-              >
-                <UserPlus size={17} />
-                Add New Student
-              </button>
-            </div>
-
-            <StudentTable
-              onEdit={handleEditStudent}
-              onDelete={handleDeleteRequest}
-            />
-          </section>
-
-          {/* Footer */}
-          <footer className="border-t border-white/10 pt-6 text-center">
-            <p className="text-xs text-[#F4EFEA]/35">
-              EduManage Student Portal · Built with React, Redux Toolkit and Tailwind CSS
-            </p>
-          </footer>
+        <div className="mx-auto w-full max-w-[1600px] p-5 md:p-8">
+          {renderActiveSection()}
         </div>
+
+        <footer className="border-t border-white/10 px-5 py-5 text-center text-xs text-[#8F8298] md:px-8">
+          StudentHub — Student Management System
+        </footer>
       </main>
 
-      {/* Add / Edit Modal */}
+      {/* Add/Edit student modal */}
       {isFormOpen && (
         <StudentForm
-          student={selectedStudent}
-          onClose={handleCloseForm}
+          student={editingStudent}
+          onClose={closeStudentForm}
         />
       )}
 
-      {/* Delete Confirmation */}
+      {/* Delete/Clear confirmation */}
       <ConfirmDialog
-        isOpen={Boolean(studentToDelete)}
-        student={studentToDelete}
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
+        isOpen={Boolean(confirmAction)}
+        title={
+          confirmAction?.type === 'clearAll'
+            ? 'Clear all student records?'
+            : 'Delete this student?'
+        }
+        message={
+          confirmAction?.type === 'clearAll'
+            ? 'This will permanently remove all student records stored in this browser. This action cannot be undone.'
+            : `Are you sure you want to delete ${confirmAction?.student?.name || 'this student'}? This action cannot be undone.`
+        }
+        confirmLabel={
+          confirmAction?.type === 'clearAll'
+            ? 'Clear all records'
+            : 'Delete student'
+        }
+        onConfirm={handleConfirmAction}
+        onCancel={closeConfirmation}
       />
     </div>
   );
-}
+};
 
 export default App;

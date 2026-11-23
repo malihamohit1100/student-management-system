@@ -6,6 +6,16 @@ const initialState = {
   students: loadStudents(),
   searchTerm: '',
   error: null,
+  activities: [],
+};
+
+const addActivity = (state, activity) => {
+  state.activities.unshift({
+    ...activity,
+  });
+
+  // Keep only the 10 most recent activities.
+  state.activities = state.activities.slice(0, 10);
 };
 
 const studentsSlice = createSlice({
@@ -13,14 +23,14 @@ const studentsSlice = createSlice({
   initialState,
 
   reducers: {
-    // Add a new student
     addStudent: {
       reducer(state, action) {
-        const newEmail = action.payload.email.toLowerCase().trim();
+        const { student, activity } = action.payload;
+
+        const newEmail = student.email.toLowerCase().trim();
 
         const emailExists = state.students.some(
-          (student) =>
-            student.email.toLowerCase().trim() === newEmail
+          (item) => item.email.toLowerCase().trim() === newEmail
         );
 
         if (emailExists) {
@@ -28,101 +38,157 @@ const studentsSlice = createSlice({
           return;
         }
 
-        state.students.push(action.payload);
+        state.students.push(student);
         state.error = null;
+
+        addActivity(state, activity);
       },
 
       prepare(student) {
+        const name = student.name.trim();
+
         return {
           payload: {
-            ...student,
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
+            student: {
+              ...student,
+              id: crypto.randomUUID(),
+              createdAt: new Date().toISOString(),
+            },
+            activity: {
+              id: crypto.randomUUID(),
+              type: 'added',
+              studentName: name,
+              createdAt: new Date().toISOString(),
+            },
           },
         };
       },
     },
 
-    // Edit an existing student
-    editStudent(state, action) {
-      const { id, ...updatedData } = action.payload;
+    editStudent: {
+      reducer(state, action) {
+        const { id, updatedData, activity } = action.payload;
 
-      const newEmail = updatedData.email.toLowerCase().trim();
+        const newEmail = updatedData.email.toLowerCase().trim();
 
-      const emailExists = state.students.some(
-        (student) =>
-          student.id !== id &&
-          student.email.toLowerCase().trim() === newEmail
-      );
+        const emailExists = state.students.some(
+          (student) =>
+            student.id !== id &&
+            student.email.toLowerCase().trim() === newEmail
+        );
 
-      if (emailExists) {
-        state.error = 'Another student already uses this email.';
-        return;
-      }
+        if (emailExists) {
+          state.error = 'Another student already uses this email.';
+          return;
+        }
 
-      const studentIndex = state.students.findIndex(
-        (student) => student.id === id
-      );
+        const studentIndex = state.students.findIndex(
+          (student) => student.id === id
+        );
 
-      if (studentIndex === -1) {
-        state.error = 'Student not found.';
-        return;
-      }
+        if (studentIndex === -1) {
+          state.error = 'Student not found.';
+          return;
+        }
 
-      state.students[studentIndex] = {
-        ...state.students[studentIndex],
-        ...updatedData,
-      };
+        state.students[studentIndex] = {
+          ...state.students[studentIndex],
+          ...updatedData,
+        };
 
-      state.error = null;
+        state.error = null;
+        addActivity(state, activity);
+      },
+
+      prepare({ id, ...updatedData }) {
+        return {
+          payload: {
+            id,
+            updatedData,
+            activity: {
+              id: crypto.randomUUID(),
+              type: 'edited',
+              studentName: updatedData.name.trim(),
+              createdAt: new Date().toISOString(),
+            },
+          },
+        };
+      },
     },
 
-    // Delete a student
-    deleteStudent(state, action) {
-      state.students = state.students.filter(
-        (student) => student.id !== action.payload
-      );
+    deleteStudent: {
+      reducer(state, action) {
+        const { id, activity } = action.payload;
 
-      state.error = null;
+        const studentExists = state.students.some(
+          (student) => student.id === id
+        );
+
+        if (!studentExists) return;
+
+        state.students = state.students.filter(
+          (student) => student.id !== id
+        );
+
+        state.error = null;
+        addActivity(state, activity);
+      },
+
+      prepare(student) {
+        const id = typeof student === 'string' ? student : student.id;
+        const name = typeof student === 'string' ? '' : student.name;
+
+        return {
+          payload: {
+            id,
+            activity: {
+              id: crypto.randomUUID(),
+              type: 'deleted',
+              studentName: name,
+              createdAt: new Date().toISOString(),
+            },
+          },
+        };
+      },
     },
 
-    // Update search term
+    clearAllStudents(state) {
+      state.students = [];
+      state.activities = [];
+      state.error = null;
+      state.searchTerm = '';
+    },
+
     setSearchTerm(state, action) {
       state.searchTerm = action.payload;
     },
 
-    // Clear Redux error
     clearError(state) {
       state.error = null;
     },
   },
 });
 
-// Export actions
 export const {
   addStudent,
   editStudent,
   deleteStudent,
+  clearAllStudents,
   setSearchTerm,
   clearError,
 } = studentsSlice.actions;
 
-// Selectors
 export const selectStudents = (state) => state.students.students;
-
 export const selectSearchTerm = (state) => state.students.searchTerm;
-
 export const selectStudentError = (state) => state.students.error;
+export const selectActivities = (state) => state.students.activities;
 
-// Memoized selector for searching students
 export const selectFilteredStudents = createSelector(
   [selectStudents, selectSearchTerm],
   (students, searchTerm) => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    if (!normalizedSearch) {
-      return students;
-    }
+    if (!normalizedSearch) return students;
 
     return students.filter((student) =>
       student.name.toLowerCase().includes(normalizedSearch)
@@ -130,5 +196,4 @@ export const selectFilteredStudents = createSelector(
   }
 );
 
-// Export reducer
 export default studentsSlice.reducer;
