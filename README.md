@@ -5,7 +5,7 @@ A responsive student management application built with React, Redux Toolkit, and
 
 ## Live Demo
 
-[View Live Application](ADD_YOUR_DEPLOYED_URL_HERE)
+[View Live Application](https://student-management-system-two-neon.vercel.app/)
 
 ## Preview
 
